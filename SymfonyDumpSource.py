@@ -18,7 +18,6 @@ except AttributeError:
 from concurrent.futures import ThreadPoolExecutor
 import os
 from bs4 import BeautifulSoup
-import urllib.parse
 
 
 VERSION = "1.1"
@@ -79,6 +78,7 @@ def worker_dump_source(target, path_to_file, options):
             if options.verbose:
                 print("\x1b[91m[!] (%s) %s\x1b[0m" % ("==error==", path_to_file))
             return None
+            
     except Exception as e:
         if options.debug:
             print(e)
@@ -89,7 +89,7 @@ def parseArgs():
 
     parser = argparse.ArgumentParser(description="")
 
-    parser.add_argument("-v", "--verbose", default=False, action="store_true", help='Verbose mode. (default: False)')
+    parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Verbose mode. (default: False)")
     parser.add_argument("--debug", dest="debug", action="store_true", default=False, help="Debug mode.")
     parser.add_argument("--no-colors", dest="no_colors", action="store_true", default=False, help="No colors mode.")
 
