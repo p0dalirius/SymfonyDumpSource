@@ -11,10 +11,10 @@
 
 ## Features
 
- - [x] Dump files from the remote server in a local directory.
- - [x] Multithreaded.
- - [x] Specify custom list of file paths to dump with option `--file-list`.
- - [x] Automatically extract file paths from debug page
++ [x] Dump files from the remote server in a local directory.
++ [x] Multithreaded.
++ [x] Specify custom list of file paths to dump with option `--file-list`.
++ [x] Automatically extract file paths from debug page
 
 ## Demonstration
 
@@ -44,4 +44,4 @@ options:
 ```
 
 ## References
- - https://symfony.com/doc/current/profiler.html
+ - [https://symfony.com/doc/current/profiler.html](https://symfony.com/doc/current/profiler.html)
