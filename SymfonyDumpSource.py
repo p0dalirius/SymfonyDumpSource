@@ -85,7 +85,7 @@ def worker_dump_source(target, path_to_file, options):
 
 
 def parseArgs():
-    print("SymfonyDumpSource.py v%s - by @podalirius_\n" % VERSION)
+    print("SymfonyDumpSource.py v%s - by Remi GASCOU (Podalirius)\n" % VERSION)
 
     parser = argparse.ArgumentParser(description="")
 
