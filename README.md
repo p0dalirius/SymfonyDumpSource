@@ -24,7 +24,7 @@
 
 ```
 $ ./SymfonyDumpSource.py -h
-SymfonyDumpSource.py v1.1 - by @podalirius_
+SymfonyDumpSource.py v1.1 - by Remi GASCOU (Podalirius)
 
 usage: SymfonyDumpSource.py [-h] [-v] [--debug] [--no-colors] -t TARGET [-D DUMP_DIR] [-f FILE_LIST] [-T THREADS]
 
