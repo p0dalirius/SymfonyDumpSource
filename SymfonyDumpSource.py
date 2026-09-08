@@ -19,9 +19,12 @@ from bs4 import BeautifulSoup
 
 VERSION = "1.1"
 
-# Cipher string accepting deprecated and weak cipher methods. SECLEVEL=0 is what
-# lets OpenSSL 3.x actually negotiate them (small keys, SHA-1 signatures, ...).
-LEGACY_CIPHERS = "DEFAULT:@SECLEVEL=0:HIGH:!DH:!aNULL"
+# Cipher string accepting deprecated and weak cipher methods. The list has to be
+# based on ALL and not DEFAULT: DEFAULT already excludes COMPLEMENTOFDEFAULT,
+# which is exactly where the legacy suites live, so there would be nothing left
+# for SECLEVEL=0 to unlock. SECLEVEL=0 is then what lets OpenSSL 3.x actually
+# negotiate them (small keys, SHA-1 signatures, ...).
+LEGACY_CIPHERS = "ALL:@SECLEVEL=0:HIGH:!DH:!aNULL"
 
 
 class LegacyTLSAdapter(HTTPAdapter):
@@ -35,8 +38,11 @@ class LegacyTLSAdapter(HTTPAdapter):
         context = ssl.create_default_context()
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
+        # MINIMUM_SUPPORTED rather than TLSv1, which is deprecated and would
+        # print a DeprecationWarning on every run. SSLv3 stays disabled by the
+        # OP_NO_SSLv3 of the default context, so this lands on TLS 1.0.
         try:
-            context.minimum_version = ssl.TLSVersion.TLSv1
+            context.minimum_version = ssl.TLSVersion.MINIMUM_SUPPORTED
         except (AttributeError, ValueError):
             pass
         # Servers not implementing RFC 5746 secure renegotiation
