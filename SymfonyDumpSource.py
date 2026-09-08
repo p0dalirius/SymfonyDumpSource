@@ -5,7 +5,6 @@
 # Date created       : 27 Sep 2023
 
 import argparse
-import re
 import ssl
 import threading
 import requests
@@ -112,7 +111,12 @@ def worker_dump_source(target, path_to_file, options):
         div_source = soup.find("div", attrs={"class": "source"})
         if div_source is not None:
             file_content = div_source.text.strip()
-            file_content = re.sub(r" (.)", "r\1", file_content)
+            # The profiler renders indentation as &nbsp; entities
+            # (CodeExtension::fileExcerpt does str_replace(' ', '&nbsp;') so
+            # that the markup survives its own trim()), and that reaches us as
+            # U+00A0. Put real spaces back, otherwise the dumped file holds no
+            # ASCII space at all and is not valid source anymore.
+            file_content = file_content.replace("\xa0", " ")
             print("\x1b[92m[+] (%9s) %s\x1b[0m" % (filesize_to_str(file_content), path_to_file))
 
             basepath = os.path.join(options.dump_dir, os.path.dirname(path_to_file))
